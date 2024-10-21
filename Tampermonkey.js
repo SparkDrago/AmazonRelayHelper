@@ -394,6 +394,7 @@ const notifyForDelays = (entity, load, action, stopIndex) => {
 };
 
 
+
 /**
  * Checks if the facility sequence for the given entity forms a complete loop.
  * It takes the loads array from the entity and checks if there is a missing gap
@@ -403,58 +404,72 @@ const notifyForDelays = (entity, load, action, stopIndex) => {
  * @param {object} entity - The Tour with its VRIDs/loads array
  * @param {object[]} loads - The VRIDs/loads array from the entity
  */
-const checkFacilitySequence = (entity,loads) => {
-  // Array to store the sequence of facilities
-  const facilityPath = [];
-  // Extract the start and end facilities for each load's facilitySequence
-  for (const load of loads) {
-     // Ensure the load is not cancelled by checking if cancelTime is null
+const checkFacilitySequence = (entity, loads) => {
+    // Array to store the sequence of facilities
+    const facilityPath = [];
+
+    // Extract the start and end facilities for each load's facilitySequence
+    for (const load of loads) {
+      // Ensure the load is not cancelled by checking if cancelTime is null
       if (!load.cancelTime) {
-      const [startFacility, endFacility] = load.facilitySequence.split('->');
-      facilityPath.push({ start: startFacility, end: endFacility, VRID: load.versionedLoadId.id });
-      }
-  }
+        for (const [i, stop] of load.stops.entries()) {
+          const startFacility = stop.locationCode; // Current stop location
+          const endFacility = load.stops[i + 1]?.locationCode; // Next stop location
 
-  // Check if there is a missing gap between consecutive facilities
-  let previousEnd = null;
-
-  for (const facility of facilityPath) {
-      if (previousEnd) {
-          // Directly split the facility names and compare only the first part (prefix before the dash)
-          const previousEndPrefix = previousEnd.split('-')[0];
-          const currentStartPrefix = facility.start.split('-')[0];
-
-          // If the prefixes do not match, there's a gap
-          if (previousEndPrefix !== currentStartPrefix) {
-              showNotification(
-                  `Gap detected in Block: ${entity.resourceBlock.id}, Driver: ${entity.drivers[0].firstName} ${entity.drivers[0].lastName}; Load ID: ${facility.VRID}. Missing connection between site: ${previousEnd} and ${facility.start}`,
-                  'warning'
-              );
-              console.log(`Gap detected between ${previousEnd} and ${facility.start}`);
+          // Push only if there is an end facility
+          if (endFacility) {
+            facilityPath.push({
+              start: startFacility,
+              end: endFacility,
+              VRID: load.versionedLoadId.id
+            });
           }
+        }
+      }
+    }
+
+    // Check if there is a missing gap between consecutive facilities
+    let previousEnd = null;
+
+    for (const facility of facilityPath) {
+      if (previousEnd) {
+        // Directly compare the end of the previous facility with the start of the current facility
+        const previousEndPrefix = previousEnd;
+        const currentStartPrefix = facility.start;
+
+        // If the prefixes do not match, there's a gap
+        if (previousEndPrefix !== currentStartPrefix) {
+          showNotification(
+            `Gap detected in Block: ${entity.resourceBlock.id}, Driver: ${entity.drivers[0].firstName} ${entity.drivers[0].lastName}; Load ID: ${facility.VRID}. Missing connection between site: ${previousEnd} and ${facility.start}`,
+            'warning'
+          );
+          console.log(`Gap detected between ${previousEnd} and ${facility.start}`);
+        }
       }
       // Update the previousEnd to the current facility's end
       previousEnd = facility.end;
-  }
+    }
 
-  // Ensure the final facility loops back to the starting one
-  const finalEnd = facilityPath[facilityPath.length - 1].end;
-  const firstStart = facilityPath[0].start;
+    // Ensure the final facility loops back to the starting one
+    const finalEnd = facilityPath[facilityPath.length - 1]?.end;
+    const firstStart = facilityPath[0]?.start;
 
-  // Compare the prefixes of the final end and the first start
-  const finalEndPrefix = finalEnd.split('-')[0];
-  const firstStartPrefix = firstStart.split('-')[0];
+    // Compare the prefixes of the final end and the first start
+    if (finalEnd && firstStart) {
+      const finalEndPrefix = finalEnd;
+      const firstStartPrefix = firstStart;
 
-  if (finalEndPrefix !== firstStartPrefix) {
-      showNotification(
+      if (finalEndPrefix !== firstStartPrefix) {
+        showNotification(
           `Final facility ${finalEnd} does not loop back to the starting facility ${firstStart} in Block: ${entity.resourceBlock.id}`,
           'danger'
-      );
-      console.log(`Sequence in Block: ${entity.resourceBlock.id} does not form a loop: Final facility is ${finalEnd}, but should connect to ${firstStart}`);
-  } else {
-      console.log(`The facility in Block: ${entity.resourceBlock.id} sequence forms a complete loop.`);
-  }
-}
+        );
+        console.log(`Sequence in Block: ${entity.resourceBlock.id} does not form a loop: Final facility is ${finalEnd}, but should connect to ${firstStart}`);
+      } else {
+        console.log(`The facility in Block: ${entity.resourceBlock.id} sequence forms a complete loop.`);
+      }
+    }
+  };
 
 //Logic:
 const sendRequest= async ()=> {
