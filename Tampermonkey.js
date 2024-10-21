@@ -1,35 +1,69 @@
 // ==UserScript==
 // @name         Amazon Relay Notifications Fetcher
 // @namespace    http://tampermonkey.net/
-// @version      Beta-V0.4-(10/10/2024)
+// @version      Beta-V0.4-(10/17/2024)
 // @description  Display custom notifications on Amazon Relay dashboard
 // @author       SparkDrago, Yamazo, StarkTheGnr
 // @match        https://relay.amazon.com/*
 // @icon         https://lh3.googleusercontent.com/AIuLy2qRt1BgjSQRgCw-GeEDxKrh8UeMtJs25HH-Z7cMfnd8NkM6gFdExO_2WEpRp_U=s180
 // @grant        GM.xmlHttpRequest
-// ==/UserScript==
 
+// ==/UserScript==
 "use strict";
-const allStoredNotes = JSON.parse(localStorage.getItem('ALLNOTES')) || {};
-//TODO: Add a way to add cookies to the request
-//TODO: Add a way to save CsrfToken of the session to local storage. so only one visit to amazon Realay is needed.
+//TODO: Add a way to save CsrfToken of the session to local storage. so only one visit to amazon Realay is needed. ?? I dont get this todo anymore XD
 //Cookies:
-const requestCookie = `sess-time-owpus=2082787201l; ubid-owpus=131-0494391-6521244; i18n-prefs=USD; sp-cdn="L5Z9:EG"; sid="jafcvoxIiI3FGm3JfU/4Xw==|EsT32G1gOQoK0IFb49RO3Xob7kyflHLCWr53y/DmnP8="; regStatus=pre-register; aws-target-visitor-id=1727915523093-679468; aws-target-data=%7B%22support%22%3A%221%22%7D; AMCV_7742037254C95E840A4C98A6%40AdobeOrg=1585540135%7CMCIDTS%7C20000%7CMCMID%7C42974595939689291731437136935827997618%7CMCAID%7CNONE%7CMCOPTOUT-1727923029s%7CNONE%7CvVersion%7C4.4.0; ubid-main=131-0494391-6521244; _pendo_visitorId.28a24577-c7fa-4d0c-52b2-e8a706b20b8b=AER50A9Q6S6XT; _pendo_accountId.28a24577-c7fa-4d0c-52b2-e8a706b20b8b=0371531e-5112-46bb-9fc0-e02f7f62fc4a; _pendo___sg__.28a24577-c7fa-4d0c-52b2-e8a706b20b8b=%7B%22visitormetadata%22%3A%7B%22agent__useragent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F129.0.0.0%20Safari%2F537.36%20Edg%2F129.0.0.0%22%7D%7D; sess-id-owpus=138-5976922-9582218; _pendo_meta.28a24577-c7fa-4d0c-52b2-e8a706b20b8b=4036634963; lc-acbuk=en_US; AMCV_D250623D5E59623C0A495C6C%40AdobeOrg=-637568504%7CMCIDTS%7C20006%7CMCMID%7C87226288098684581851450313745747616791%7CMCAID%7CNONE%7CMCOPTOUT-1728488666s%7CNONE%7CvVersion%7C5.1.1; session-id=145-1662146-9279037; session-token="a15wP01LR6v7p3BfgwhuR7hf2N9icCLmHGeCr6gnjXzXHtUfH1BfNY5yd5yBvDFKstCrlzLCvHu0UIM4ckcmDFUGRvJXGGC99K9OWXEt39gC4gaPU2OmnRBrckqjLfM8uwXFUkMPOX5hBWeCjFiytttZMJgQBAWNY8PmxFrfFvAfQzRysPG334wI9CCMRIpCIqZeTIBiTdVj0DhDxxO8oqphzL2VQrCmrjCaSsW/8p4epxpAxP3uUKHbMUtzBqNZNFhCKxH6JIqiEXYzmCtZ14EkDck9uaa/HCVjyyEbwfIj/tusgmpZP0DoTvndnu6OTiP/g6lWo6cfHK5SggoRBsGq4FPcCOCPxXgegUvsUY5CQ/aHz6px3g=="; x-owpus="0pqQly04qp8JGWTpJqsUZVWNKflQJiB519EA678dF@cYqAIIWXOwrv?X7uFyY0nf"; at-owpus=Atza|IwEBIO_oOkPm0wgrn0wA4xaz9Z-vLsnwFO1p2fGw8Ch6vfwX3jR_EHcFkWAwIMa-OJejgWSgLUpY5j18b8f1d7pt2LK6N0nurZq1E3Vc5jAbzDnKjsgOufSW0bijeNgxXBcImALDH2seUGCzvV5uTiukYkCah67tP5yz1o4Vuuj_wD7aFdHXVFaE687Y4KHbhFVQ1X0hMcFxK-MyltJAy0bw8YV7fWfeWAeEK2LJJ9hWdNtnWg; sess-at-owpus="aQ5P1x78Bqq6pVyg+fyX5VXxZzn78c/+e8bfgX8XWLw="; sess-token-owpus=1gspKj3L9NUS93538fnEgZQcazIBK8ttpD+HjH4U1Z+ztiC/oahNekhL+C1FsslxgP6nppNP+h/GzKGTGFe504k/4P4KTEN2ABT8S6cxuqM1GzwLCOkHAphuQnP/0e3PSY3DGnDzU19ixSiwVmUGdauAIrbO7AbCy6SBxCnQHxIF3PPX+i3EWSsaQU21MDMTpmHzqExVk/zx1Nd4Al9B3iLmz/iANpFAfDg2ZElnfuJkWpxR0g2Go3x9Te9Ytsyl53rJU8JyGtQmV23GhGghLbQAqXFchVmBN1V7wsPyE3PTsFn5Q2KHiDnIVUzKgNQDzR1WD/i0uj+8e+CEbIXPwq4og80Fv3iBwIRJ0xU/Wzj9mmjSe8WsBYOgIfur1UUr; session-id-time=2082787201l; csm-hit=tb:s-ZFE7PAZ0GX2CN5B1NKWG|1728520917741&t:1728520918246&adb:adblk_yes`; // Dynamic cookies        "Host": "relay.amazon.com",
-const NoteCookie = `sess-time-owpus=2082787201l; ubid-owpus=131-0494391-6521244; i18n-prefs=USD; sp-cdn="L5Z9:EG"; sid="jafcvoxIiI3FGm3JfU/4Xw==|EsT32G1gOQoK0IFb49RO3Xob7kyflHLCWr53y/DmnP8="; regStatus=pre-register; aws-target-visitor-id=1727915523093-679468; aws-target-data=%7B%22support%22%3A%221%22%7D; AMCV_7742037254C95E840A4C98A6%40AdobeOrg=1585540135%7CMCIDTS%7C20000%7CMCMID%7C42974595939689291731437136935827997618%7CMCAID%7CNONE%7CMCOPTOUT-1727923029s%7CNONE%7CvVersion%7C4.4.0; ubid-main=131-0494391-6521244; _pendo_visitorId.28a24577-c7fa-4d0c-52b2-e8a706b20b8b=AER50A9Q6S6XT; _pendo_accountId.28a24577-c7fa-4d0c-52b2-e8a706b20b8b=0371531e-5112-46bb-9fc0-e02f7f62fc4a; _pendo___sg__.28a24577-c7fa-4d0c-52b2-e8a706b20b8b=%7B%22visitormetadata%22%3A%7B%22agent__useragent%22%3A%22Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F129.0.0.0%20Safari%2F537.36%20Edg%2F129.0.0.0%22%7D%7D; sess-id-owpus=138-5976922-9582218; _pendo_meta.28a24577-c7fa-4d0c-52b2-e8a706b20b8b=4036634963; lc-acbuk=en_US; AMCV_D250623D5E59623C0A495C6C%40AdobeOrg=-637568504%7CMCIDTS%7C20006%7CMCMID%7C87226288098684581851450313745747616791%7CMCAID%7CNONE%7CMCOPTOUT-1728488666s%7CNONE%7CvVersion%7C5.1.1; session-id=145-1662146-9279037; session-token="a15wP01LR6v7p3BfgwhuR7hf2N9icCLmHGeCr6gnjXzXHtUfH1BfNY5yd5yBvDFKstCrlzLCvHu0UIM4ckcmDFUGRvJXGGC99K9OWXEt39gC4gaPU2OmnRBrckqjLfM8uwXFUkMPOX5hBWeCjFiytttZMJgQBAWNY8PmxFrfFvAfQzRysPG334wI9CCMRIpCIqZeTIBiTdVj0DhDxxO8oqphzL2VQrCmrjCaSsW/8p4epxpAxP3uUKHbMUtzBqNZNFhCKxH6JIqiEXYzmCtZ14EkDck9uaa/HCVjyyEbwfIj/tusgmpZP0DoTvndnu6OTiP/g6lWo6cfHK5SggoRBsGq4FPcCOCPxXgegUvsUY5CQ/aHz6px3g=="; x-owpus="0pqQly04qp8JGWTpJqsUZVWNKflQJiB519EA678dF@cYqAIIWXOwrv?X7uFyY0nf"; at-owpus=Atza|IwEBIO_oOkPm0wgrn0wA4xaz9Z-vLsnwFO1p2fGw8Ch6vfwX3jR_EHcFkWAwIMa-OJejgWSgLUpY5j18b8f1d7pt2LK6N0nurZq1E3Vc5jAbzDnKjsgOufSW0bijeNgxXBcImALDH2seUGCzvV5uTiukYkCah67tP5yz1o4Vuuj_wD7aFdHXVFaE687Y4KHbhFVQ1X0hMcFxK-MyltJAy0bw8YV7fWfeWAeEK2LJJ9hWdNtnWg; sess-at-owpus="aQ5P1x78Bqq6pVyg+fyX5VXxZzn78c/+e8bfgX8XWLw="; sess-token-owpus=1gspKj3L9NUS93538fnEgZQcazIBK8ttpD+HjH4U1Z+ztiC/oahNekhL+C1FsslxgP6nppNP+h/GzKGTGFe504k/4P4KTEN2ABT8S6cxuqM1GzwLCOkHAphuQnP/0e3PSY3DGnDzU19ixSiwVmUGdauAIrbO7AbCy6SBxCnQHxIF3PPX+i3EWSsaQU21MDMTpmHzqExVk/zx1Nd4Al9B3iLmz/iANpFAfDg2ZElnfuJkWpxR0g2Go3x9Te9Ytsyl53rJU8JyGtQmV23GhGghLbQAqXFchVmBN1V7wsPyE3PTsFn5Q2KHiDnIVUzKgNQDzR1WD/i0uj+8e+CEbIXPwq4og80Fv3iBwIRJ0xU/Wzj9mmjSe8WsBYOgIfur1UUr; session-id-time=2082787201l; csm-hit=tb:JQT9V55X8VSMEG29TAJS+s-RRBJCN962R7S8GHY2WPT|1728520987007&t:1728520987007&adb:adblk_yes`;
+const Cookie = document.cookie;
+const allStoredNotes = JSON.parse(localStorage.getItem('ALLNOTES')) || {};
+
 //Functions:
 
-
-
+/**
+ * Gets the CSRF token from the <meta> tag with the name "x-owp-csrf-token".
+ * @returns {string|null} - The CSRF token, or null if it wasn't found.
+ */
 const getCsrfToken = () => {
   const metaTag = document.querySelector('meta[name="x-owp-csrf-token"]');
   return metaTag ? metaTag.getAttribute("content") : null;
 };
+
 /**
- * Takes an ISO date string and formats it to a short date string (e.g. "Oct 4, 11:45 PM")
- * @param {string} isoDateString - ISO-formatted date string
- * @returns {string} short date string
+ * Format a Unix timestamp in a specific time zone, default is "America/New_York".
+ * @param {number} unixTimestamp - The Unix timestamp in seconds.
+ * @param {string} [timeZone='America/New_York'] - The time zone to format the date in.
+ * @returns {string} - A formatted string representing the date, in the format "Thu, Jun 4, 2:15 PM EDT".
  */
-const formatISODate = (isoDateString) => {
+const formatUnixTimestamp = (unixTimestamp, timeZone = 'America/New_York') => {
+  // Convert seconds to milliseconds
+  const date = new Date(unixTimestamp * 1000);
+
+  // Define options for formatting the date with a specific time zone
+  const options = {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short',
+      hour12: false,
+      timeZone: timeZone // Specify the time zone, default is "America/New_York"
+  };
+
+  // Create a formatter for the desired format and time zone
+  const formatter = new Intl.DateTimeFormat('en-US', options);
+
+  // Format the date
+  return formatter.format(date);
+}
+
+/**
+ * Takes an ISO date string and formats it to a short date string in a specified time zone.
+ * The formatted string excludes the year and uses a 24-hour format (e.g., "Oct 4, 21:45").
+ *
+ * @param {string} isoDateString - ISO-formatted date string.
+ * @param {string} [timeZone='America/New_York'] - The time zone to format the date in.
+ * @returns {string} - The formatted date string.
+ */
+const formatISODate = (isoDateString,timeZone = 'America/New_York') => {
   // Create a new Date object from the ISO string
   const date = new Date(isoDateString);
 
@@ -40,7 +74,7 @@ const formatISODate = (isoDateString) => {
     hour: "numeric", // Numeric for 24-hour format
     minute: "2-digit",
     hour12: false, // false for 24-hour format
-    timeZone: "America/New_York", // Change to your desired timezone
+    timeZone: timeZone, // Change to your desired timezone
     timeZoneName: "short",
   };
 
@@ -204,7 +238,7 @@ const playSound = (type) => {
       soundUrl = "https://www.sndup.net/86qqz/d";
       break;
     default:
-      soundUrl = "https://www.sndup.net/6h5j5/d"; 
+      soundUrl = "https://www.sndup.net/6h5j5/d";
   }
   const audio = new Audio(soundUrl);
   audio
@@ -217,7 +251,9 @@ const playSound = (type) => {
     });
 };
 
-async function fetchNotes(entity,load,entityId, entityVersion) {
+//Checks:
+
+const fetchNotes = async (entity,load,entityId, entityVersion) => {
     console.log("Sending note request...");
 
     try {
@@ -230,7 +266,7 @@ async function fetchNotes(entity,load,entityId, entityVersion) {
                 "Accept-Encoding": "gzip, deflate, br, zstd",
                 "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
                 Connection: "keep-alive",
-                Cookie: NoteCookie,
+                Cookie: Cookie,
                 Host: "relay.amazon.com",
                 Referer: "https://relay.amazon.com/tours/in-transit?ref=owp_nav_tours&itsrtb=START_DATE&itsrtdrctn=desc",
                 "User-Agent": navigator.userAgent,
@@ -263,7 +299,7 @@ async function fetchNotes(entity,load,entityId, entityVersion) {
  * If a new note is found, it will show a notification with the note text and the time it was added.
  * After processing all notes, it will update the stored notes with the new notes.
  */
-function processNotes(entity,load,entityId, currentNotes) {
+const processNotes = (entity,load,entityId, currentNotes) => {
     // Step 2: Retrieve all stored notes from local storage
 
     // Step 3: Compare current notes with original notes for this specific entity
@@ -276,7 +312,7 @@ function processNotes(entity,load,entityId, currentNotes) {
         if (blockNote.notesList && blockNote.notesList.length > 0) {
             // Iterate over each note in the block
             for (const note of blockNote.notesList) {
-                const exists = originalNotes.some(originalNote => 
+                const exists = originalNotes.some(originalNote =>
                 // Check if the note exists in the original notes by comparing:
                 // - load ID
                 // - comment
@@ -315,12 +351,116 @@ function processNotes(entity,load,entityId, currentNotes) {
     // Step 5: Update the stored notes for this specific entity
     allStoredNotes[entityId] = currentNotes;
     // Step 6: Save the updated notes for all entities in local storage
+    localStorage.setItem('ALLNOTES', JSON.stringify(allStoredNotes));
 }
+
+
+
+/**
+ * Checks if an action has been delayed and no delay has been reported, a notification is shown to report the delay.
+ * If the actual time is after the planned time, a notification is shown.
+ * If the current time is past the planned time, no actual time has been reported.
+ * @param {object} entity - The Tour associated with the action
+ * @param {object} load - The VRID information related to the action
+ * @param {object} action - The current action (check-in/check-out) being processed
+ * @param {number} stopIndex - The index of the stop being checked in the VRID
+ */
+const notifyForDelays = (entity, load, action, stopIndex) => {
+  const currentTime = new Date();
+  const plannedTime = new Date(action.plannedTime);
+  const actualTime = action.actualTime ? new Date(action.actualTime) : null;
+  const delayReport = action.delayReport;
+
+  const stop = load.stops[stopIndex]; // Get the stop we're processing
+  const timeZone = stop.location.timeZone;
+
+  if (!load.cancelTime && !delayReport) {
+      if (actualTime && actualTime > plannedTime) {
+          showNotification(
+              `In Block: ${entity.resourceBlock.id}, Driver: ${entity.drivers[0].firstName} ${entity.drivers[0].lastName}; Load ID: ${load.versionedLoadId.id}.\n
+              Delayed ${action.type}: Planned Time: ${formatISODate(action.plannedTime, timeZone)}, Actual Time: ${formatISODate(action.actualTime, timeZone)}`,
+              'warning'
+          );
+      }
+
+      if (!actualTime && currentTime > plannedTime) {
+          showNotification(
+              `In Block: ${entity.resourceBlock.id}, Driver: ${entity.drivers[0].firstName} ${entity.drivers[0].lastName}; Load ID: ${load.versionedLoadId.id}.\n
+              Report delay for ${action.type}: Planned Time was ${formatISODate(action.plannedTime, timeZone)}, but no check-in/out has occurred (Time now is ${formatISODate(currentTime, timeZone)}).`,
+              'danger'
+          );
+      }
+  }
+};
+
+
+/**
+ * Checks if the facility sequence for the given entity forms a complete loop.
+ * It takes the loads array from the entity and checks if there is a missing gap
+ * between consecutive facilities. It also ensures that the final facility loops
+ * back to the starting one, while skipping cancelled loads/VRIDS.
+ *
+ * @param {object} entity - The Tour with its VRIDs/loads array
+ * @param {object[]} loads - The VRIDs/loads array from the entity
+ */
+const checkFacilitySequence = (entity,loads) => {
+  // Array to store the sequence of facilities
+  const facilityPath = [];
+  // Extract the start and end facilities for each load's facilitySequence
+  for (const load of loads) {
+     // Ensure the load is not cancelled by checking if cancelTime is null
+      if (!load.cancelTime) {
+      const [startFacility, endFacility] = load.facilitySequence.split('->');
+      facilityPath.push({ start: startFacility, end: endFacility, VRID: load.versionedLoadId.id });
+      }
+  }
+
+  // Check if there is a missing gap between consecutive facilities
+  let previousEnd = null;
+
+  for (const facility of facilityPath) {
+      if (previousEnd) {
+          // Directly split the facility names and compare only the first part (prefix before the dash)
+          const previousEndPrefix = previousEnd.split('-')[0];
+          const currentStartPrefix = facility.start.split('-')[0];
+
+          // If the prefixes do not match, there's a gap
+          if (previousEndPrefix !== currentStartPrefix) {
+              showNotification(
+                  `Gap detected in Block: ${entity.resourceBlock.id}, Driver: ${entity.drivers[0].firstName} ${entity.drivers[0].lastName}; Load ID: ${facility.VRID}. Missing connection between site: ${previousEnd} and ${facility.start}`,
+                  'warning'
+              );
+              console.log(`Gap detected between ${previousEnd} and ${facility.start}`);
+          }
+      }
+      // Update the previousEnd to the current facility's end
+      previousEnd = facility.end;
+  }
+
+  // Ensure the final facility loops back to the starting one
+  const finalEnd = facilityPath[facilityPath.length - 1].end;
+  const firstStart = facilityPath[0].start;
+
+  // Compare the prefixes of the final end and the first start
+  const finalEndPrefix = finalEnd.split('-')[0];
+  const firstStartPrefix = firstStart.split('-')[0];
+
+  if (finalEndPrefix !== firstStartPrefix) {
+      showNotification(
+          `Final facility ${finalEnd} does not loop back to the starting facility ${firstStart} in Block: ${entity.resourceBlock.id}`,
+          'danger'
+      );
+      console.log(`Sequence in Block: ${entity.resourceBlock.id} does not form a loop: Final facility is ${finalEnd}, but should connect to ${firstStart}`);
+  } else {
+      console.log(`The facility in Block: ${entity.resourceBlock.id} sequence forms a complete loop.`);
+  }
+}
+
 //Logic:
-async function sendRequest() {
+const sendRequest= async ()=> {
   console.log("Sending request...");
   let originalEntities = localStorage.getItem("originalEntities");
-  console.log(originalEntities);
+  //console.log(originalEntities);
   originalEntities = originalEntities ? JSON.parse(originalEntities) : [];
   const _STOPSALERTS = JSON.parse(localStorage.getItem('_STOPSALERTS')) || [];
 
@@ -333,7 +473,7 @@ async function sendRequest() {
         headers: {
           Accept: "application/json, text/plain, */*",
           "Content-Type": "application/json",
-          Cookie: requestCookie, //TODO: Replace with Dynamic cookie
+          Cookie: Cookie,
           "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
@@ -383,13 +523,13 @@ async function sendRequest() {
 
     // Process the response data here...
     processEntities(data.entities, originalEntities, _STOPSALERTS)
-  } 
+  }
   catch (error) {
     console.error("Request failed:", error);
   }
 }
 // Function to process the entities data (add your logic here)
-function processEntities(entities, originalEntities, _STOPSALERTS) {
+const processEntities = (entities, originalEntities, _STOPSALERTS) => {
     if (!originalEntities) {
         originalEntities = entities || [];
         return;
@@ -402,11 +542,12 @@ function processEntities(entities, originalEntities, _STOPSALERTS) {
     `facilitySequence`,
     `isEBOLRequired`,
     `areNotesPresent`,
-    `physicalTrailerId`
+    `physicalTrailerId`,
+    `cancelTime`,
     ];
     for (const entity of responseEntities) {
         const originalEntity = originalEntities.find((item) => item.id === entity.id);
-        
+
         if (!originalEntity) {
             continue;
         }
@@ -428,8 +569,8 @@ function processEntities(entities, originalEntities, _STOPSALERTS) {
             // This will give us the loads that were added or removed from the entity
             const changedLoads = largerLoad.filter((item) => {
             // For each item in the larger array, check if there is no item in the smaller array
-            // with the same versionedLoadId.id. If there isn't, that means the load was added or removed    
-                return !smallerLoad.find((smallerItem) => item.versionedLoadId.id === smallerItem.versionedLoadId.id);    
+            // with the same versionedLoadId.id. If there isn't, that means the load was added or removed
+                return !smallerLoad.find((smallerItem) => item.versionedLoadId.id === smallerItem.versionedLoadId.id);
             });
             // Find the first driver in the original entity's resource block (assuming there's only one driver)
             const driver = originalEntity.resourceBlock.drivers[0];
@@ -445,12 +586,35 @@ function processEntities(entities, originalEntities, _STOPSALERTS) {
                     .map((item) => item.versionedLoadId.id)
                     .join(", ")}`,`warning`
                 );
-        }
-        // Iterate over the loads in the current entity
-        for (const load of loads) {
+          }
+          //Check if there is a gap in the current tour/entity
+          //DONE: Fixed bug of Sequence that has a dash (Missing connection between site: DTP9-CYC1 and DTP9))
+          checkFacilitySequence(entity,loads);
+          // Iterate over the VRIDs/loads in the current tour/entity
+          for (const load of loads) {
             // Check for new notes while we're at it
             fetchNotes(entity,load,entity.id, entity.version);
-            localStorage.setItem('ALLNOTES', JSON.stringify(allStoredNotes));
+
+             // For each load, process the stops (focus on stop[0] and stop[1])
+              if (load.stops && load.stops.length > 1) {
+                const stop0 = load.stops[0];
+                const stop1 = load.stops[1];
+
+                // Notify for CHECKIN and CHECKOUT on stop[0]
+                for (const action of stop0.actions) {
+                    if (['CHECKIN', 'CHECKOUT'].includes(action.type)) {
+                        notifyForDelays(entity, load, action, 0); // Stop[0] - check both CHECKIN and CHECKOUT
+                    }
+                }
+
+                // Notify for CHECKIN only on stop[1]
+                for (const action of stop1.actions) {
+                    if (action.type === 'CHECKIN') {
+                        notifyForDelays(entity, load, action, 1); // Stop[1] - check CHECKIN only
+                    }
+                }
+            }
+
             // For each load, find the corresponding load in the original entity
             const originalLoad = originalEntity.loads.find((item) => item.versionedLoadId.id === load.versionedLoadId.id);
             // If the load is not present in the original entity, skip it
@@ -461,21 +625,45 @@ function processEntities(entities, originalEntities, _STOPSALERTS) {
             for (const field of loadChecks) {
                 // If the value of the field has changed, show a notification
                 if (load[field] !== originalLoad[field]) {
-                    if (field === 'areNotesPresent') {
-                        showNotification(`A new note was added on a VRID with no notes: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}}`, 'info');
-                    }
-                    else if (field === 'loadType') {
-                        showNotification(`Load Type Changed: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}}`, 'danger');
-                        if(load[field] !== "BOBTAIL" && load.physicalTrailerId){
-                            showNotification(`Trailer Assigned to VRID: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}}: ${load.physicalTrailerId}`, 'warning');
+                  switch (field) {
+                    case 'areNotesPresent':
+                        showNotification(
+                            `A new note was added on a VRID with no notes: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}`,
+                            'info');
+                        break;
+
+                        case 'cancelTime':
+                        showNotification(
+                            `A VRID HAS BEEN CANCELLED! Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id} at ${formatUnixTimestamp(load.cancelTime,load.stops[0].location.timeZone)}`,
+                            'warning');
+                        break;
+
+                    case 'loadType':
+                        showNotification(
+                            `Load Type Changed: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}`,
+                            'danger');
+
+                        // Additional logic for 'loadType' when it's not "BOBTAIL"
+                        if (load[field] !== "BOBTAIL" && load.physicalTrailerId) {
+                            showNotification(
+                                `Trailer Assigned to VRID: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}: ${load.physicalTrailerId}`,
+                                'warning');
                         }
-                    }
-                    else if (field === `isEBOLRequired`) {
-                        showNotification(`NEW LOADED TRAILER WITH A BOL REQUIREMENT: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}}`, 'warning');
-                    }
-                    else if (field === `isEBOLRequired`) {
-                        showNotification(`Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}) Changed: ${field} Changed on Load: VRID ${load.versionedLoadId.id} From ${originalLoad[field]} to ${load[field]}`, 'info');
-                    }
+                        break;
+
+                    case 'isEBOLRequired':
+                        showNotification(
+                            `NEW LOADED TRAILER WITH A BOL REQUIREMENT: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}`,
+                            'warning');
+                        break;
+
+                    default:
+                        // Default behavior for unspecified fields
+                        showNotification(
+                            `Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}) Changed: ${field} Changed on Load: VRID ${load.versionedLoadId.id} From ${originalLoad[field]} to ${load[field]}`,
+                            'info');
+                        break;
+                   }
                 }
             }
             for (const stop of load.stops) {
@@ -486,9 +674,9 @@ function processEntities(entities, originalEntities, _STOPSALERTS) {
                 for (const action of stop.actions) {
                     const originalAction = originalStop.actions.find((item) => item.type === action.type);
                     const driver = load.driverList[0]
-                    
                     //CHECK IF DRIVER ARRIVED OR IT'S A MISSING TIMESTAMP
-                    if (action.type === "CHECKIN" || action.type === "CHECKOUT") {
+                    //DONE: Ensure trip is not cancelled to begin with
+                    if (!load.cancelTime && action.type === "CHECKIN" || action.type === "CHECKOUT") {
                         if (stop === load.stops[load.stops.length - 1] && action === stop.actions[1] && action.actualTime === null) {
                             continue;
                         }
@@ -519,12 +707,12 @@ function processEntities(entities, originalEntities, _STOPSALERTS) {
                                 if (timeDifferenceInMinutes <= 10 && timeDifferenceInMinutes > 0) {
                                     // Alert: Driver hasn't arrived, and the planned time is less than 10 minutes away
                                     if (!_STOPSALERTS.includes(stop.stopId)) {
-                                        showNotification(`Driver: ${driver.firstName} ${driver.lastName} hasn't arrived at Stop ${stop.locationCode}, and it's less than 10 minutes to the scheduled planned time (${action.plannedTime})!`, 'danger');
+                                        showNotification(`Driver: ${driver.firstName} ${driver.lastName} hasn't arrived at Stop ${stop.locationCode}, and it's less than 10 minutes to the scheduled planned time (${formatISODate(action.plannedTime,stop.location.timeZone)})!`, 'danger');
                                         // Mark this Stop ID as alerted
                                         _STOPSALERTS.push(stop.stopId);
                                         localStorage.setItem('_STOPSALERTS', JSON.stringify(_STOPSALERTS));
                                     }
-                                }            
+                                }
                             }
                             else {
                                 if (!_STOPSALERTS.includes(stop.stopId)) {
@@ -540,14 +728,14 @@ function processEntities(entities, originalEntities, _STOPSALERTS) {
                     for (const field of actionChecks) {
                         if (action[field] !== originalAction[field]) {
                             switch (field) {
-                                case 'plannedTime': showNotification(`Amazon changed the Planned Time: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id} from ${formatISODate(originalAction[field])} to ${formatISODate(action[field])}`,'danger');
+                                case 'plannedTime': showNotification(`Amazon changed the Planned Time: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id} from ${formatISODate(originalAction[field],stop.location.timeZone)} to ${formatISODate(action[field],stop.location.timeZone)}`,'danger');
                                     break;
                                 case 'actualTime':
                                     if (action.type === 'CHECKIN') {
-                                        showNotification(`Driver: ${driver.firstName} ${driver.lastName} checked in on ${originalEntity.resourceBlock.id} (Stop: ${stop.locationCode}), VRID ${load.versionedLoadId.id} at ${formatISODate(action[field])} via ${action.actualTimeSource}`, 'success');
+                                        showNotification(`Driver: ${driver.firstName} ${driver.lastName} checked in on ${originalEntity.resourceBlock.id} (Stop: ${stop.locationCode}), VRID ${load.versionedLoadId.id} at ${formatISODate(action[field],stop.location.timeZone)} via ${action.actualTimeSource}`, 'success');
                                     }
                                     else if (action.type == 'CHECKOUT'){
-                                        showNotification(`Driver: ${driver.firstName} ${driver.lastName} checked out on ${originalEntity.resourceBlock.id} (Stop: ${stop.locationCode}), VRID ${load.versionedLoadId.id} at ${formatISODate(action[field])} via ${action.actualTimeSource}`, 'success');
+                                        showNotification(`Driver: ${driver.firstName} ${driver.lastName} checked out on ${originalEntity.resourceBlock.id} (Stop: ${stop.locationCode}), VRID ${load.versionedLoadId.id} at ${formatISODate(action[field],stop.location.timeZone)} via ${action.actualTimeSource}`, 'success');
                                     }
                                     break;
                                 default:
@@ -557,13 +745,13 @@ function processEntities(entities, originalEntities, _STOPSALERTS) {
                                         `From ${originalAction[field]} to ${action[field]}`,
                                         'info');
                                     break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+     }
     originalEntities = entities || [];
     localStorage.setItem("originalEntities",JSON.stringify(originalEntities));
 
