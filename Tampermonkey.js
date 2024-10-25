@@ -866,7 +866,7 @@ const fetchPositionData = async (aaid) => {
  * @returns {Promise<void>} - A promise that resolves when the calculation is complete.
  * @throws {Error} - Throws an error if the HTTP request for the position data or matrix ETA fails.
  */
-const calculateLiveETA = async (load, stop, action, driver, hasLaterTimestamps) => {
+const calculateLiveETA = async (entity, load, stop, action, driver, hasLaterTimestamps) => {
   /*
 Ensure delay is not reported
 Ensure not missing timestamp (hasLaterTimestamps)
@@ -913,11 +913,11 @@ Otherwise no.
             const timeAgoText = days > 0 ? `${days} day${days > 1 ? 's' : ''}, ${minutes} minute${minutes !== 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : minutes > 0 ? `${minutes} minute${minutes > 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : seconds < 30 ? "less than 30 seconds ago" : `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
             const formattedScheduledTime = formatISODate(scheduledTime.toISOString(), timeZone);
             const formattedEtaTime = formatISODate(etaTime.toISOString(), timeZone);
-            //console.log(`Scheduled Time: Sch. ${formattedScheduledTime}, Estimated Time: Sch. ${formattedEtaTime}`);
+            console.log(`Scheduled Time: Sch. ${formattedScheduledTime}, Estimated Time: Sch. ${formattedEtaTime}`);
             const delay = calculateDelay(etaTime, scheduledTime);
             if (etaTime > scheduledTime) {
               showNotification(
-                `Report Delay at Block: ${load.resourceBlock.id}, VRID: ${load.versionedLoadId.id}, Driver: <strong>${driver.firstName} ${driver.lastName}</strong> will arrive late at Stop <strong>${nextStop.locationCode}</strong> by <strong>${delay.hours} hrs, ${delay.minutes} mins. </strong> - Last updated: (${timeAgoText})`,
+                `Report Delay at Block: ${entity.resourceBlock.id}, VRID: ${load.versionedLoadId.id}, Driver: <strong>${driver.firstName} ${driver.lastName}</strong> will arrive late at Stop <strong>${nextStop.locationCode}</strong> by <strong>${delay.hours} hrs, ${delay.minutes} mins. </strong> - Last updated: (${timeAgoText})`,
                 'danger'
               );
             } else {
@@ -1199,7 +1199,7 @@ const processEntities = async (entities, originalEntities, _STOPSALERTS) => {
         for (const action of stop.actions) {
           const originalAction = originalStop.actions.find((item) => item.type === action.type);
           checkMissingTimestamps(load, stop, action, originalEntity, driver, _STOPSALERTS, hasLaterTimestamps);
-          calculateLiveETA(load, stop, action, driver, hasLaterTimestamps)
+          calculateLiveETA(entity, load, stop, action, driver, hasLaterTimestamps)
           checkArrivalandDeparture(action, originalAction, originalLoad, load, stop, originalEntity, driver);
         }
       }
