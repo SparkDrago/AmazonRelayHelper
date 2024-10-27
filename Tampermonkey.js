@@ -867,20 +867,19 @@ const fetchPositionData = async (aaid) => {
  * @throws {Error} - Throws an error if the HTTP request for the position data or matrix ETA fails.
  */
 const calculateLiveETA = async (entity, load, stop, action, driver, hasLaterTimestamps) => {
-  /*
-Ensure delay is not reported
-Ensure not missing timestamp (hasLaterTimestamps)
-Ensure that he hasn't arrived yet.
-Ensure it's not a cancelled load
-Get live location and stop location
-Ensure driver is checked out from the site
-Calculate time difference to next check in stop
-if ETA > Scheduled arrival time
-Alert he'll be late due.
-Otherwise no.
-*/
-  //TODO: Problem, the last updated geolocation is not updated, and so the ETA is not calculated correctly.
-  //ATTEMPT TO GET LAST UPDATED GEOLOCATION FROM ASSETS API.
+
+// Ensure delay is not reported
+// Ensure not missing timestamp (hasLaterTimestamps)
+// Ensure that he hasn't arrived yet.
+// Ensure it's not a cancelled load
+// Get live location and stop location
+// Ensure driver is checked out from the site
+// Calculate time difference to next check in stop
+// if ETA > Scheduled arrival time
+// Alert he'll be late due.
+// Otherwise no.
+// Done: Problem, the last updated geolocation is not updated, and so the ETA is not calculated correctly.
+// ATTEMPT TO GET LAST UPDATED GEOLOCATION FROM ASSETS API.
   const licensePlateId = load.tractorDetail?.assetId
   const asset = assetMap.get(licensePlateId);
   const delayReport = action.delayReport;
@@ -889,6 +888,8 @@ Otherwise no.
     return;
   }
   if (!load.cancelTime && !delayReport && !hasLaterTimestamps && action.type === "CHECKOUT" && action.actualTime) {
+    const nextLoadIndex = entity.loads.indexOf(load) + 1;
+    const nextLoad = entity.loads[nextLoadIndex];
     const nextStopIndex = load.stops.indexOf(stop) + 1;
     const nextStop = load.stops[nextStopIndex];
     if (nextStop && !nextStop.actions[0].delayReport) {
@@ -910,16 +911,16 @@ Otherwise no.
             const { etaTime } = etaData;
             const scheduledTime = new Date(nextCheckIn.plannedTime);
             const { days, minutes, seconds } = getLiveISOTimeDifference(positionData.timestamp, timeZone) // This will be in ISO format
-            const timeAgoText = days > 0 ? `${days} day${days > 1 ? 's' : ''}, ${minutes} minute${minutes !== 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : minutes > 0 ? `${minutes} minute${minutes > 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : seconds < 30 ? "less than 30 seconds ago" : `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
+            const timeAgoText = days > 0 ? `${days} day${days > 1 ? 's' : ''}, ${minutes} minute${minutes !== 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : minutes > 0 ? `${minutes} minute${minutes > 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : seconds < 30 ? "a few seconds ago" : `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
             const formattedScheduledTime = formatISODate(scheduledTime.toISOString(), timeZone);
             const formattedEtaTime = formatISODate(etaTime.toISOString(), timeZone);
             console.log(`Scheduled Time: Sch. ${formattedScheduledTime}, Estimated Time: Sch. ${formattedEtaTime}`);
             const delay = calculateDelay(etaTime, scheduledTime);
             if (etaTime > scheduledTime) {
-              showNotification(
-                `Report Delay at Block: ${entity.resourceBlock.id}, VRID: ${load.versionedLoadId.id}, Driver: <strong>${driver.firstName} ${driver.lastName}</strong> will arrive late at Stop <strong>${nextStop.locationCode}</strong> by <strong>${delay.hours} hrs, ${delay.minutes} mins. </strong> - Last updated: (${timeAgoText})`,
-                'danger'
-              );
+                showNotification(
+                  `Report Delay at Block: ${entity.resourceBlock.id}, VRID: <strong>${load.versionedLoadId.id} & ${nextLoad.versionedLoadId.id}</strong> , Driver: <strong>${driver.firstName} ${driver.lastName}</strong> will arrive late at Stop <strong>${nextStop.locationCode}</strong> by <strong>${delay.hours} hrs, ${delay.minutes} mins. </strong> - Last updated: (${timeAgoText})`,
+                  'danger'
+                );
             } else {
               // Log if the driver is early
               const earlyBy = calculateDelay(scheduledTime, etaTime);
@@ -937,20 +938,18 @@ Otherwise no.
 }
 const fetchMatrixETA = async (originLat, originLon, destLat, destLon, action) => {
   const API_KEY = "2zmTHgjtCcIz_QtE0j1Rq9OGbusyzG7FhbnuduOgGoM"; // Replace with your actual API key
-
+  const departureTime = new Date().toISOString(); 
   const url = `https://matrix.router.hereapi.com/v8/matrix?async=false&apikey=${API_KEY}`;
-
-  // Ensure departureTime is in ISO 8601 format
-  const departureTime = new Date(action.actualTime).toISOString();
-
   const requestBody = {
     origins: [{ lat: originLat, lng: originLon }],
     destinations: [{ lat: destLat, lng: destLon }],
-    profile: "truckFast",
+    "routingMode": "fast",
+    "transportMode": "truck",
     regionDefinition: {
       type: "world"
     },
-    matrixAttributes: ["travelTimes", "distances"]
+    matrixAttributes: ["travelTimes", "distances"],
+    departureTime: departureTime
   };
 
   try {
