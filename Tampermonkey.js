@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Amazon Relay Notifications Fetcher
 // @namespace    http://tampermonkey.net/
-// @version      Beta-V0.5-(10/25/2024)
+// @version      Beta-V0.6-(19/12/2024)
 // @description  Display custom notifications on Amazon Relay dashboard
 // @author       SparkDrago, Yamazo, StarkTheGnr
-// @match        https://relay.amazon.com/*
+// @match        https://relay.amazon.com/hos?ref=owp_nav_hos
 // @icon         https://lh3.googleusercontent.com/AIuLy2qRt1BgjSQRgCw-GeEDxKrh8UeMtJs25HH-Z7cMfnd8NkM6gFdExO_2WEpRp_U=s180
 // @grant        GM.xmlHttpRequest
 
@@ -17,6 +17,8 @@ const allStoredNotes = JSON.parse(localStorage.getItem('ALLNOTES')) || {};
 let assetMap = new Map();
 let relayToken = null; // Initialize relayToken as null
 let tokenExpiration = null; // To store the expiration time
+let calculateLiveETAEnabled = false;
+//let CompanySCAC = null;
 //Functions:
 
 /**
@@ -268,7 +270,7 @@ const playSound = (type) => {
 
   switch (type) {
     case "arrival":
-      soundUrl = "https://www.sndup.net/6h5j5/d";
+      soundUrl = "https://files.catbox.moe/7yc3lb.mp3";
       break;
     case "departure":
       soundUrl = "https://www.zapsplat.com/wp-content/uploads/2015/sound-effects-93160/zapsplat_multimedia_ui_chime_tone_simple_007_99767.mp3";
@@ -277,16 +279,16 @@ const playSound = (type) => {
       soundUrl = "https://www.zapsplat.com/wp-content/uploads/2015/sound-effects-93160/zapsplat_multimedia_ui_chime_tone_simple_006_99766.mp3";
       break;
     case "info":
-      soundUrl = "https://www.sndup.net/tkyxj/d";
+      soundUrl = "https://files.catbox.moe/lttgjh.wav";
       break;
     case "warning":
-      soundUrl = "https://www.sndup.net/zqgmd/d";
+      soundUrl = "https://files.catbox.moe/06nvrz.wav";
       break;
     case "danger":
-      soundUrl = "https://www.sndup.net/xzzst/d";
+      soundUrl = "https://files.catbox.moe/mpfn73.mp3";
       break;
     case "note":
-      soundUrl = "https://www.sndup.net/86qqz/d";
+      soundUrl = "https://files.catbox.moe/w8rzy5.wav";
       break;
     default:
       soundUrl = "https://www.sndup.net/g5jhy/d";
@@ -302,6 +304,138 @@ const playSound = (type) => {
     });
 };
 
+/**
+ * Clears all notifications on the page by animating them out and then removing them.
+ */
+const clearNotifications = () => {
+  const notifications = document.querySelectorAll('.alert'); // Select all notification elements
+  notifications.forEach(notification => {
+    // Slide the notification out
+    notification.style.transition = 'transform 0.5s ease, opacity 0.5s ease'; // Smooth transition
+    notification.style.transform = 'translateX(-50%) translateY(100%)'; // Slide down
+    notification.style.opacity = '0'; // Fade out
+
+    // Remove the notification after the animation
+    setTimeout(() => notification.remove(), 500); // Wait for the animation to complete
+  });
+};
+
+
+/**
+ * Adds a "Clear Notifications" button and a "Check ETA" toggle checkbox to the top of the Amazon Relay dashboard.
+ * The "Clear Notifications" button clears all notifications on the page when clicked.
+ * The "Check ETA" toggle checkbox enables/disables the live ETA calculation feature.
+ * The style of the buttons and checkbox is matched to the existing styles on the page.
+ */
+const addClearNotificationsAndETACheckbox = () => {
+  const tabList = document.querySelector('.css-1tjbqgb'); // Select the tab list container
+  if (!tabList) {
+    console.error('Tab list container not found');
+    return;
+  }
+
+  // Create the Clear Notifications button wrapper
+  const clearButtonWrapper = document.createElement('label');
+  clearButtonWrapper.className = 'css-1uei0cx'; // Use provided base styles
+  clearButtonWrapper.setAttribute('role', 'button'); // Accessibility role
+
+  // Add span and button text
+  const clearButtonSpan = document.createElement('span');
+  clearButtonWrapper.appendChild(clearButtonSpan);
+
+  const clearButtonText = document.createElement('div');
+  clearButtonText.className = 'css-14dbfau'; // Match existing styles
+  clearButtonText.textContent = 'Clear Notifications';
+  clearButtonSpan.appendChild(clearButtonText);
+
+  // Add indicator div for Clear Notifications button
+  const clearIndicatorDiv = document.createElement('div');
+  clearIndicatorDiv.className = 'css-1iw0jih'; // Initial unchecked state
+  clearButtonWrapper.appendChild(clearIndicatorDiv);
+
+  // Attach click event to clear notifications and change style
+  clearButtonWrapper.addEventListener('click', () => {
+    clearNotifications();
+    // Set the class to `css-zccwph` on click
+    clearIndicatorDiv.classList.remove('css-1iw0jih');
+    clearIndicatorDiv.classList.add('css-zccwph');
+    setTimeout(() => {
+      // Revert to initial style after 500ms
+      clearIndicatorDiv.classList.remove('css-zccwph');
+      clearIndicatorDiv.classList.add('css-1iw0jih');
+    }, 500);
+  });
+
+  // Create the Check ETA toggle checkbox wrapper
+  const checkboxWrapper = document.createElement('label');
+  checkboxWrapper.className = 'css-1uei0cx'; // Use provided base styles
+  checkboxWrapper.setAttribute('role', 'tab'); // Accessibility role
+
+  // Add span and label text
+  const checkboxSpan = document.createElement('span');
+  checkboxWrapper.appendChild(checkboxSpan);
+
+  const checkboxLabelText = document.createElement('div');
+  checkboxLabelText.className = 'css-14dbfau';
+  checkboxLabelText.textContent = 'Enable Live ETA';
+  checkboxSpan.appendChild(checkboxLabelText);
+
+  // Add indicator div for checkbox
+  const indicatorDiv = document.createElement('div');
+  indicatorDiv.className = 'css-1iw0jih'; // Initial unchecked state
+  checkboxWrapper.appendChild(indicatorDiv);
+
+  // Add event listener to toggle checkbox state and style
+  checkboxWrapper.addEventListener('click', () => {
+    calculateLiveETAEnabled = !calculateLiveETAEnabled; // Toggle the state
+
+    // Update the class name based on the state
+    if (calculateLiveETAEnabled) {
+      indicatorDiv.classList.remove('css-1iw0jih');
+      indicatorDiv.classList.add('css-zccwph');
+    } else {
+      indicatorDiv.classList.remove('css-zccwph');
+      indicatorDiv.classList.add('css-1iw0jih');
+    }
+
+    console.log(`Live ETA calculation ${calculateLiveETAEnabled ? 'enabled' : 'disabled'}`);
+  });
+
+  // Insert the Clear Notifications button and Check ETA checkbox into the tab list
+  const firstTab = tabList.querySelector('label');
+  if (firstTab) {
+    tabList.insertBefore(clearButtonWrapper, firstTab); // Add Clear Notifications button first
+    tabList.insertBefore(checkboxWrapper, firstTab); // Add Check ETA checkbox second
+  }
+};
+
+/**
+ * Formats a given first name by correcting improperly concatenated names
+ * and standardizing capitalization.
+ *
+ * If the name is improperly concatenated (e.g., "johnDoe"), it inserts
+ * a space between the concatenated parts and takes the first part.
+ * Ensures the first letter is capitalized and the rest of the letters
+ * are in lowercase.
+ *
+ * @param {string} firstName - The first name to be formatted.
+ * @returns {string} - The formatted first name, or an empty string if
+ * the input is falsy.
+ */
+const formatFirstName = (firstName) => {
+  if (!firstName) return '';
+
+  // Regex to handle improperly concatenated names
+  if (/^[a-zA-Z]+[A-Z]/.test(firstName)) {
+    // Insert a space between concatenated names, then split and take the first part
+    firstName = firstName.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ')[0];
+  }
+
+  // Capitalize the first letter and convert the rest to lowercase
+  return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+};
+
+
 //Checks:
 /**
  * Fetches tour entities from the Amazon Relay API.
@@ -309,7 +443,7 @@ const playSound = (type) => {
  * including filters for stages, load types, and sort order.
  * The request includes a CSRF token for authentication and uses cookies for session management.
  * Parses the JSON response and returns the tour data.
- * 
+ *
  * @returns {Promise<object>} - A promise that resolves to the JSON response containing tour entities.
  * @throws {Error} - Throws an error if the HTTP request fails.
  */
@@ -427,7 +561,9 @@ const processNotes = (entity, load, entityId, currentNotes) => {
   const originalNotes = allStoredNotes[entityId] || [];
   // Create an array to store new notes for this entity
   const newNotes = [];
-
+  const driverName = load?.driverList?.length > 0
+    ? `${load.driverList[0].firstName} ${load.driverList[0].lastName}`
+    : "Unknown Driver";
   for (const blockNote of currentNotes) {
     // If there are notes in the current block
     if (blockNote.notesList && blockNote.notesList.length > 0) {
@@ -464,7 +600,7 @@ const processNotes = (entity, load, entityId, currentNotes) => {
           seconds < 30 ? "less than 30 seconds ago" : `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
     // Show a notification for each new note, including the time difference
     showNotification(
-      `Block: ${entity.resourceBlock.id} VRID: ${newNote.loadId} Driver: <strong>${load.driverList[0].firstName} ${load.driverList[0].lastName}</strong> , A New Note was added by <strong>${newNote.scac}</strong> ${timeAgoText}:\n"${newNote.note}"`,
+      `Block: ${entity.resourceBlock?.id || entity.id} VRID: ${newNote.loadId} Driver: <strong>${driverName}</strong>, A New Note was added by <strong>${newNote.scac}</strong> ${timeAgoText}:\n"${newNote.note}"`,
       `note`
     );
   }
@@ -504,13 +640,13 @@ const compareAndNotifyLoadChanges = (driver, originalEntity, loads) => {
       return !smallerLoad.find(smallerItem => item.versionedLoadId.id === smallerItem.versionedLoadId.id);
     });
     // Get the driver's full name
-    const driverFullName = `${driver.firstName} ${driver.lastName}`;
+    const driverFullName = `${driver?.firstName} ${driver?.lastName}`;
     // If there are any changed loads, show a notification with the following format:
     // "Loads were altered on <driver name>'s trip; Block ID: <block ID>. The following loads' VRIDs were either added or removed: <list of changed VRIDs>"
     if (changedLoads.length > 0) {
       showNotification(
         `Loads were altered on ${driverFullName}'s trip; ` +
-        `Block ID: ${originalEntity.resourceBlock.id}. ` +
+        `Block ID: ${originalEntity.resourceBlock?.id || originalEntity.id}. ` +
         `The following loads' VRIDs were either added or removed: ` +
         `${changedLoads.map(item => item.versionedLoadId.id).join(", ")}`,
         'warning'
@@ -526,22 +662,25 @@ const compareAndNotifyLoadChanges = (driver, originalEntity, loads) => {
  * @param {object} load - The VRID information related to the load
  */
 const checkStopDelays = (entity, load) => {
-  // For each load, process the stops (focus on stop[0] and stop[1])
-  if (load.stops && load.stops.length > 1) {
-    const stop0 = load.stops[0];
-    const stop1 = load.stops[1];
 
-    // Notify for CHECKIN and CHECKOUT on stop[0]
-    for (const action of stop0.actions) {
-      if (["CHECKIN", "CHECKOUT"].includes(action.type)) {
-        notifyForDelays(entity, load, action, 0); // Stop[0] - check both CHECKIN and CHECKOUT
+  if (!entity.isRetendered && !entity.isUnaccepted) {
+    // For each load, process the stops (focus on stop[0] and stop[1])
+    if (load.stops && load.stops.length > 1) {
+      const stop0 = load.stops[0];
+      const stop1 = load.stops[1];
+
+      // Notify for CHECKIN and CHECKOUT on stop[0]
+      for (const action of stop0.actions) {
+        if (["CHECKIN", "CHECKOUT"].includes(action.type)) {
+          notifyForDelays(entity, load, action, 0); // Stop[0] - check both CHECKIN and CHECKOUT
+        }
       }
-    }
 
-    // Notify for CHECKIN only on stop[1]
-    for (const action of stop1.actions) {
-      if (action.type === "CHECKIN") {
-        notifyForDelays(entity, load, action, 1); // Stop[1] - check CHECKIN only
+      // Notify for CHECKIN only on stop[1]
+      for (const action of stop1.actions) {
+        if (action.type === "CHECKIN") {
+          notifyForDelays(entity, load, action, 1); // Stop[1] - check CHECKIN only
+        }
       }
     }
   }
@@ -556,29 +695,39 @@ const checkStopDelays = (entity, load) => {
  * @param {number} stopIndex - The index of the stop being checked in the VRID
  */
 const notifyForDelays = (entity, load, action, stopIndex) => {
-  const currentTime = new Date();
-  const plannedTime = new Date(action.plannedTime);
-  const actualTime = action.actualTime ? new Date(action.actualTime) : null;
-  const delayReport = action.delayReport;
+  if (!entity.isRetendered && !entity.isUnaccepted) {
+    const currentTime = new Date();
+    const plannedTime = new Date(action.plannedTime);
+    const actualTime = action.actualTime ? new Date(action.actualTime) : null;
+    const delayReport = action.delayReport;
 
-  const stop = load.stops[stopIndex]; // Get the stop we're processing
-  const timeZone = stop.location.timeZone;
+    const stop = load.stops[stopIndex]; // Get the stop we're processing
+    const timeZone = stop.location.timeZone;
 
-  if (!load.cancelTime && !delayReport) {
-    if (actualTime && actualTime > plannedTime) {
-      showNotification(
-        `In Block: ${entity.resourceBlock.id}, Driver: ${entity.drivers[0].firstName} ${entity.drivers[0].lastName}; Load ID: ${load.versionedLoadId.id}.\n
-              Delayed ${action.type}: Planned Time: ${formatISODate(action.plannedTime, timeZone)}, Actual Time: ${formatISODate(action.actualTime, timeZone)}`,
-        'warning'
-      );
-    }
+    // Helper function to calculate the difference in minutes
+    const getMinuteDifference = (date1, date2) => {
+      return Math.abs((date1 - date2) / (1000 * 60));
+    };
 
-    if (!actualTime && currentTime > plannedTime) {
-      showNotification(
-        `In Block: ${entity.resourceBlock.id}, Driver: ${entity.drivers[0].firstName} ${entity.drivers[0].lastName}; Load ID: ${load.versionedLoadId.id}.\n
+    if (!load.cancelTime && !delayReport) {
+      if (actualTime && actualTime > plannedTime) {
+        // Check if the difference is at least 1 minute
+        if (getMinuteDifference(actualTime, plannedTime) >= 1) {
+          showNotification(
+            `In Block: ${entity.resourceBlock?.id || entity.id}, Driver: ${entity?.drivers[0]?.firstName} ${entity?.drivers[0]?.lastName}; Load ID: ${load.versionedLoadId.id}.\n
+                Delayed ${action.type}: Planned Time: ${formatISODate(action.plannedTime, timeZone)}, Actual Time: ${formatISODate(action.actualTime, timeZone)}`,
+            'warning'
+          );
+        }
+      }
+
+      if (!actualTime && currentTime > plannedTime) {
+        showNotification(
+          `In Block: ${entity.resourceBlock?.id || entity.id}, Driver: ${entity?.drivers[0]?.firstName} ${entity?.drivers[0]?.lastName}; Load ID: ${load.versionedLoadId.id}.\n
               Report delay for ${action.type}: Planned Time was ${formatISODate(action.plannedTime, timeZone)}, but no check-in/out has occurred (Time now is ${formatISODate(currentTime, timeZone)}).`,
-        'danger'
-      );
+          'danger'
+        );
+      }
     }
   }
 };
@@ -586,82 +735,85 @@ const notifyForDelays = (entity, load, action, stopIndex) => {
  * Checks for gaps in the sequence of facilities for a given driver's trip and notifies if any gaps are found.
  * The function iterates through the sequence of stops for each trip, checking for missing connections between facilities.
  * If the sequence of facilities does not form a continuous path or loop, a notification is shown.
- * 
+ *
  * @param {object} driver - The driver object, containing the driver's name.
  * @param {object} entity - The Tour object, containing the block information.
  * @param {object[]} loads - The array of trips, each containing stop and VRID information.
  */
 const checkFacilitySequenceGaps = (driver, entity, loads) => {
-  // Array to store the sequence of facilities
-  const facilityPath = [];
-  // Extract the start and end facilities for each load's facilitySequence
-  for (const load of loads) {
-    // Ensure the load is not cancelled by checking if cancelTime is null
-    if (!load.cancelTime) {
-      for (const [i, stop] of load.stops.entries()) {
-        const startFacility = stop.locationCode; // Current stop location
-        const endFacility = load.stops[i + 1]?.locationCode; // Next stop location
 
-        // Push only if there is an end facility
-        if (endFacility) {
-          facilityPath.push({
-            start: startFacility,
-            end: endFacility,
-            VRID: load.versionedLoadId.id,
-          });
+  if (!entity.isRetendered && !entity.isUnaccepted) {
+    // Array to store the sequence of facilities
+    const facilityPath = [];
+    // Extract the start and end facilities for each load's facilitySequence
+    for (const load of loads) {
+      // Ensure the load is not cancelled by checking if cancelTime is null
+      if (!load.cancelTime) {
+        for (const [i, stop] of load.stops.entries()) {
+          const startFacility = stop.locationCode; // Current stop location
+          const endFacility = load.stops[i + 1]?.locationCode; // Next stop location
+
+          // Push only if there is an end facility
+          if (endFacility) {
+            facilityPath.push({
+              start: startFacility,
+              end: endFacility,
+              VRID: load.versionedLoadId.id,
+            });
+          }
         }
       }
     }
-  }
 
-  // Check if there is a missing gap between consecutive facilities
-  // Check if there is a missing gap between consecutive facilities
-  let previousEnd = null;
-  let previousVRID = null; // Store the VRID of the previous facility
+    // Check if there is a missing gap between consecutive facilities
+    // Check if there is a missing gap between consecutive facilities
+    let previousEnd = null;
+    let previousVRID = null; // Store the VRID of the previous facility
 
-  for (const facility of facilityPath) {
-    if (previousEnd) {
-      // Directly compare the end of the previous facility with the start of the current facility
-      const previousEndPrefix = previousEnd;
-      const currentStartPrefix = facility.start;
+    for (const facility of facilityPath) {
+      if (previousEnd) {
+        // Directly compare the end of the previous facility with the start of the current facility
+        const previousEndPrefix = previousEnd;
+        const currentStartPrefix = facility.start;
 
-      // If the prefixes do not match, there's a gap
-      if (previousEndPrefix !== currentStartPrefix) {
+        // If the prefixes do not match, there's a gap
+        if (previousEndPrefix !== currentStartPrefix) {
+          showNotification(
+            `Gap detected in Block: ${entity.resourceBlock?.id || entity.id}, Driver: <strong>${driver?.firstName} ${driver?.lastName}</strong> ; Load ID: ${facility.VRID}. Missing connection between site: <strong>${previousEnd} and ${facility.start}</strong>`,
+            "warning"
+          );
+          console.log(
+            `Gap detected between ${previousEnd} and ${facility.start}, Load ID: ${previousVRID}`
+          );
+        }
+      }
+      // Update the previousEnd to the current facility's end
+      previousEnd = facility.end;
+      previousVRID = facility.VRID;
+    }
+
+    // Ensure the final facility loops back to the starting one
+    const finalEnd = facilityPath[facilityPath.length - 1]?.end;
+    const firstStart = facilityPath[0]?.start;
+
+    // Compare the prefixes of the final end and the first start
+    if (finalEnd && firstStart) {
+      const finalEndPrefix = finalEnd;
+      const firstStartPrefix = firstStart;
+
+      if (finalEndPrefix !== firstStartPrefix) {
         showNotification(
-          `Gap detected in Block: ${entity.resourceBlock.id}, Driver: <strong>${driver.firstName} ${driver.lastName}</strong> ; Load ID: ${previousVRID}. Missing connection between site: <strong>${previousEnd} and ${facility.start}</strong>`,
-          "warning"
+          `Final facility ${finalEnd} does not loop back to the starting facility ${firstStart} in Block: ${entity.resourceBlock?.id || entity.id}`,
+          "danger"
         );
         console.log(
-          `Gap detected between ${previousEnd} and ${facility.start}, Load ID: ${previousVRID}`
+          `Sequence in Block: ${entity.resourceBlock?.id || entity.id} does not form a loop: Final facility is ${finalEnd}, but should connect to ${firstStart}`
         );
+      } else {
+        // console.log(
+        //   `The facilities in Block: ${entity.resourceBlock?.id || entity.id} sequence forms a complete loop.`
+        // );
       }
-    }
-    // Update the previousEnd to the current facility's end
-    previousEnd = facility.end;
-    previousVRID = facility.VRID;
-  }
-
-  // Ensure the final facility loops back to the starting one
-  const finalEnd = facilityPath[facilityPath.length - 1]?.end;
-  const firstStart = facilityPath[0]?.start;
-
-  // Compare the prefixes of the final end and the first start
-  if (finalEnd && firstStart) {
-    const finalEndPrefix = finalEnd;
-    const firstStartPrefix = firstStart;
-
-    if (finalEndPrefix !== firstStartPrefix) {
-      showNotification(
-        `Final facility ${finalEnd} does not loop back to the starting facility ${firstStart} in Block: ${entity.resourceBlock.id}`,
-        "danger"
-      );
-      console.log(
-        `Sequence in Block: ${entity.resourceBlock.id} does not form a loop: Final facility is ${finalEnd}, but should connect to ${firstStart}`
-      );
-    } else {
-      console.log(
-        `The facilities in Block: ${entity.resourceBlock.id} sequence forms a complete loop.`
-      );
     }
   }
 };
@@ -670,7 +822,7 @@ const checkFacilitySequenceGaps = (driver, entity, loads) => {
  * Sends a notification if a change is detected in fields such as loadType, facilitySequence, isEBOLRequired, etc.
  * Special notifications are sent for changes in `areNotesPresent`, `cancelTime`, and `loadType`.
  * Additional alert for trailer assignment if `loadType` is not "BOBTAIL" and `physicalTrailerId` exists.
- * 
+ *
  * @param {object} load - The current load object containing the latest load details.
  * @param {object} originalLoad - The original load object for comparison.
  * @param {object} originalEntity - The original entity object containing the resource block ID.
@@ -685,14 +837,14 @@ const checkAndNotifyLoadChanges = (load, originalLoad, originalEntity, driver) =
       switch (field) {
         case "areNotesPresent":
           showNotification(
-            `A new note was added on a VRID with no notes: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}`,
+            `A new note was added on a VRID with no notes: Block ID ${originalEntity.resourceBlock?.id || originalEntity.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}`,
             "info"
           );
           break;
 
         case "cancelTime":
           showNotification(
-            `A VRID HAS BEEN CANCELLED! Block ID ${originalEntity.resourceBlock.id
+            `A VRID HAS BEEN CANCELLED! Block ID ${originalEntity.resourceBlock?.id || originalEntity.id
             } (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id
             } at ${formatUnixTimestamp(
               load.cancelTime,
@@ -704,14 +856,14 @@ const checkAndNotifyLoadChanges = (load, originalLoad, originalEntity, driver) =
 
         case "loadType":
           showNotification(
-            `Load Type Changed: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), Driver: <strong>${driver.firstName} ${driver.lastName}</strong>, VRID ${load.versionedLoadId.id}.\n <strong>from ${originalLoad.loadType} to ${load.loadType}</strong>`,
+            `Load Type Changed: Block ID ${originalEntity.resourceBlock?.id || originalEntity.id} (Trip: ${originalLoad.facilitySequence}), Driver: <strong>${driver?.firstName} ${driver?.lastName}</strong>, VRID ${load.versionedLoadId.id}.\n <strong>from ${originalLoad.loadType} to ${load.loadType}</strong>`,
             "danger"
           );
 
           // Additional logic for 'loadType' when it's not "BOBTAIL"
           if (load[field] !== "BOBTAIL" && load.physicalTrailerId) {
             showNotification(
-              `Trailer Assigned to VRID: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}: ${load.physicalTrailerId}`,
+              `Trailer Assigned to VRID: Block ID ${originalEntity.resourceBlock?.id || originalEntity.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}: ${load.physicalTrailerId}`,
               "warning"
             );
           }
@@ -719,7 +871,7 @@ const checkAndNotifyLoadChanges = (load, originalLoad, originalEntity, driver) =
 
         case "isEBOLRequired":
           showNotification(
-            `NEW LOADED TRAILER WITH A BOL REQUIREMENT: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}`,
+            `NEW LOADED TRAILER WITH A BOL REQUIREMENT: Block ID ${originalEntity.resourceBlock?.id || originalEntity.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}`,
             "warning"
           );
           break;
@@ -727,7 +879,8 @@ const checkAndNotifyLoadChanges = (load, originalLoad, originalEntity, driver) =
         default:
           // Default behavior for unspecified fields
           showNotification(
-            `Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}) Changed: ${field} Changed on Load: VRID ${load.versionedLoadId.id} From ${originalLoad[field]} to ${load[field]}`,
+            `Block ID ${originalEntity.resourceBlock?.id || originalEntity.id}, VRID ${load.versionedLoadId.id}, Driver: <strong>${driver?.firstName} ${driver?.lastName}</strong> \n
+            ${field} Changed From ${originalLoad[field]} to ${load[field]}`,
             "info"
           );
           break;
@@ -855,6 +1008,73 @@ const fetchPositionData = async (aaid) => {
     return null; // Return null in case of an error
   }
 };
+/**
+ * Fetch position data using the VRID and Tour ID as fallback if AAID data is outdated.
+ * @param {string} aaid - The Amazon Asset ID for primary location fetch.
+ * @param {string} vrid - The VRID for fallback API call.
+ * @param {string} tourId - The Tour ID for fallback API call.
+ * @returns {Promise<object|null>} - Most recent position data or null if unavailable.
+ */
+const fetchLatestPositionData = async (aaid, vrid, tourId) => {
+  const aaidData = await fetchPositionData(aaid); // Fetch AAID position data
+
+  // Fallback to VRID-based API if AAID data is older than 6 minutes
+  let fallbackData = null;
+  if (aaidData && aaidData.timestamp) {
+    const aaidTimestamp = new Date(aaidData.timestamp);
+    const now = new Date();
+    const timeDiffMinutes = (now - aaidTimestamp) / (1000 * 60);
+
+    // If AAID data is older than 6 minutes, fetch fallback data
+    if (timeDiffMinutes > 6) {
+      fallbackData = await fetchPositionDataFromTour(vrid, tourId);
+    }
+  } else {
+    // If AAID data is missing, fetch fallback data immediately
+    fallbackData = await fetchPositionDataFromTour(vrid, tourId);
+  }
+
+  // Compare timestamps and choose the freshest data
+  if (fallbackData && fallbackData.timestamp) {
+    const fallbackTimestamp = new Date(fallbackData.timestamp);
+    if (!aaidData || new Date(aaidData.timestamp) < fallbackTimestamp) {
+      return fallbackData;
+    }
+  }
+
+  return aaidData || fallbackData;
+};
+
+/**
+ * Fetch position data using the VRID and Tour ID.
+ * @param {string} vrid - The VRID for the API call.
+ * @param {string} tourId - The Tour ID for the API call.
+ * @returns {Promise<object|null>} - Position data or null if unavailable.
+ */
+const fetchPositionDataFromTour = async (vrid, tourId) => {
+  try {
+    const url = `https://us-east-1.na.api.relay.amazon.dev/track-trace/api/v2/transport-views/NA:TOUR:${tourId}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "*/*",
+        "Content-Type": "application/json",
+        "x-relay-access-token": relayToken, // Ensure relayToken is set
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.position;
+    } else {
+      console.error(`Failed to fetch position data from VRID: ${response.status}`);
+      return null;
+    }
+  } catch (error) {
+    console.error("Error fetching position data from VRID:", error);
+    return null;
+  }
+};
 
 /**
  * Calculates the estimated time of arrival for a given stop and action, using the last updated geolocation of the tractor.
@@ -868,69 +1088,73 @@ const fetchPositionData = async (aaid) => {
  */
 const calculateLiveETA = async (entity, load, stop, action, driver, hasLaterTimestamps) => {
 
-// Ensure delay is not reported
-// Ensure not missing timestamp (hasLaterTimestamps)
-// Ensure that he hasn't arrived yet.
-// Ensure it's not a cancelled load
-// Get live location and stop location
-// Ensure driver is checked out from the site
-// Calculate time difference to next check in stop
-// if ETA > Scheduled arrival time
-// Alert he'll be late due.
-// Otherwise no.
-// Done: Problem, the last updated geolocation is not updated, and so the ETA is not calculated correctly.
-// ATTEMPT TO GET LAST UPDATED GEOLOCATION FROM ASSETS API.
-  const licensePlateId = load.tractorDetail?.assetId
-  const asset = assetMap.get(licensePlateId);
-  const delayReport = action.delayReport;
-  const timeZone = stop.location.timeZone;
-  if (stop === load.stops[load.stops.length - 1] && action === stop.actions[1] && !action.actualTime) {
-    return;
-  }
-  if (!load.cancelTime && !delayReport && !hasLaterTimestamps && action.type === "CHECKOUT" && action.actualTime) {
-    const nextLoadIndex = entity.loads.indexOf(load) + 1;
-    const nextLoad = entity.loads[nextLoadIndex];
-    const nextStopIndex = load.stops.indexOf(stop) + 1;
-    const nextStop = load.stops[nextStopIndex];
-    if (nextStop && !nextStop.actions[0].delayReport) {
-      const nextCheckIn = nextStop?.actions?.find(gate => gate.type === "CHECKIN" && !gate.actualTime);
-      if (asset && nextCheckIn) {
-        //console.log(licensePlateId);
-        const aaid = asset.asset.aaid; // Extract the AAID
-        const positionData = await fetchPositionData(aaid); // Fetch the position data
-        if (positionData) {
-          const originLatitude = positionData.latitude;
-          const originLongitude = positionData.longitude;
-          const etaData = await fetchMatrixETA(
-            originLatitude,
-            originLongitude,
-            nextStop.location?.latitude,
-            nextStop.location?.longitude,
-            action);
-          if (etaData) {
-            const { etaTime } = etaData;
-            const scheduledTime = new Date(nextCheckIn.plannedTime);
-            const { days, minutes, seconds } = getLiveISOTimeDifference(positionData.timestamp, timeZone) // This will be in ISO format
-            const timeAgoText = days > 0 ? `${days} day${days > 1 ? 's' : ''}, ${minutes} minute${minutes !== 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : minutes > 0 ? `${minutes} minute${minutes > 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : seconds < 30 ? "a few seconds ago" : `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
-            const formattedScheduledTime = formatISODate(scheduledTime.toISOString(), timeZone);
-            const formattedEtaTime = formatISODate(etaTime.toISOString(), timeZone);
-            console.log(`Scheduled Time: Sch. ${formattedScheduledTime}, Estimated Time: Sch. ${formattedEtaTime}`);
-            const delay = calculateDelay(etaTime, scheduledTime);
-            if (etaTime > scheduledTime) {
+  // Ensure delay is not reported
+  // Ensure not missing timestamp (hasLaterTimestamps)
+  // Ensure that he hasn't arrived yet.
+  // Ensure it's not a cancelled load
+  // Get live location and stop location
+  // Ensure driver is checked out from the site
+  // Calculate time difference to next check in stop
+  // if ETA > Scheduled arrival time
+  // Alert he'll be late due.
+  // Otherwise no.
+  // Done: Problem, the last updated geolocation is not updated, and so the ETA is not calculated correctly.
+  // ATTEMPT TO GET LAST UPDATED GEOLOCATION FROM ASSETS API.
+  if (calculateLiveETAEnabled) {
+    const licensePlateId = load.tractorDetail?.assetId;
+    const asset = assetMap.get(licensePlateId);
+    const vrid = load.versionedLoadId.id;
+    const tourId = entity.id;
+    //const delayReport = action.delayReport;
+    const timeZone = stop.location.timeZone;
+    if (stop === load.stops[load.stops.length - 1] && action === stop.actions[1] && !action.actualTime) {
+      return;
+    }
+    if (!load.cancelTime && !hasLaterTimestamps && action.type === "CHECKOUT" && action.actualTime) { //TODO: !delayReport (Recheck code logic for delay report)
+      const nextLoadIndex = entity.loads.indexOf(load) + 1;
+      const nextLoad = entity.loads[nextLoadIndex];
+      const nextStopIndex = load.stops.indexOf(stop) + 1;
+      const nextStop = load.stops[nextStopIndex];
+      if (nextStop && !nextStop.actions[0].delayReport) {
+        const nextCheckIn = nextStop?.actions?.find(gate => gate.type === "CHECKIN" && !gate.actualTime);
+        if (asset && nextCheckIn) {
+          //console.log(licensePlateId);
+          const aaid = asset.asset.aaid; // Extract the AAID
+          const positionData = await fetchLatestPositionData(aaid, vrid, tourId); // Fetch the position data
+          if (positionData) {
+            const originLatitude = positionData.latitude;
+            const originLongitude = positionData.longitude;
+            const etaData = await fetchMatrixETA(
+              originLatitude,
+              originLongitude,
+              nextStop.location?.latitude,
+              nextStop.location?.longitude,
+              action);
+            if (etaData) {
+              const { etaTime } = etaData;
+              const scheduledTime = new Date(nextCheckIn.plannedTime);
+              const { days, minutes, seconds } = getLiveISOTimeDifference(positionData.timestamp, timeZone) // This will be in ISO format
+              const timeAgoText = days > 0 ? `${days} day${days > 1 ? 's' : ''}, ${minutes} minute${minutes !== 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : minutes > 0 ? `${minutes} minute${minutes > 1 ? 's' : ''}, ${seconds} second${seconds !== 1 ? 's' : ''} ago` : seconds < 30 ? "a few seconds ago" : `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
+              const formattedScheduledTime = formatISODate(scheduledTime.toISOString(), timeZone);
+              const formattedEtaTime = formatISODate(etaTime.toISOString(), timeZone);
+              console.log(`Scheduled Time: Sch. ${formattedScheduledTime}, Estimated Time: Sch. ${formattedEtaTime}`);
+              const delay = calculateDelay(etaTime, scheduledTime);
+              if (etaTime > scheduledTime) {
                 showNotification(
-                  `Report Delay at Block: ${entity.resourceBlock.id}, VRID: <strong>${load.versionedLoadId.id} & ${nextLoad.versionedLoadId.id}</strong> , Driver: <strong>${driver.firstName} ${driver.lastName}</strong> will arrive late at Stop <strong>${nextStop.locationCode}</strong> by <strong>${delay.hours} hrs, ${delay.minutes} mins. </strong> - Last updated: (${timeAgoText})`,
+                  `Report Delay at Block: ${entity.resourceBlock?.id || entity.id}, VRID: <strong>${load.versionedLoadId.id} & ${nextLoad.versionedLoadId.id}</strong> , Driver: <strong>${driver?.firstName} ${driver?.lastName}</strong> will arrive late at Stop <strong>${nextStop.locationCode}</strong> by <strong>${delay.hours} hrs, ${delay.minutes} mins. </strong> - Last updated: (${timeAgoText})`,
                   'danger'
                 );
-            } else {
-              // Log if the driver is early
-              const earlyBy = calculateDelay(scheduledTime, etaTime);
-              console.log(
-                `Driver: ${driver.firstName} ${driver.lastName} is arriving early at Stop ${nextStop.locationCode} by ${earlyBy.hours} hrs, ${earlyBy.minutes} mins. - Last updated: (${timeAgoText})`);
+              } else {
+                // Log if the driver is early
+                const earlyBy = calculateDelay(scheduledTime, etaTime);
+                console.log(
+                  `Driver: ${driver?.firstName} ${driver?.lastName} is arriving early at Stop ${nextStop.locationCode} by ${earlyBy.hours} hrs, ${earlyBy.minutes} mins. - Last updated: (${timeAgoText})`);
+              }
             }
           }
-        }
-        else {
-          console.log(`No position data found for AAID: ${aaid}`);
+          else {
+            console.log(`No position data found for AAID: ${aaid}`);
+          }
         }
       }
     }
@@ -938,7 +1162,7 @@ const calculateLiveETA = async (entity, load, stop, action, driver, hasLaterTime
 }
 const fetchMatrixETA = async (originLat, originLon, destLat, destLon, action) => {
   const API_KEY = "2zmTHgjtCcIz_QtE0j1Rq9OGbusyzG7FhbnuduOgGoM"; // Replace with your actual API key
-  const departureTime = new Date().toISOString(); 
+  const departureTime = new Date().toISOString();
   const url = `https://matrix.router.hereapi.com/v8/matrix?async=false&apikey=${API_KEY}`;
   const requestBody = {
     origins: [{ lat: originLat, lng: originLon }],
@@ -1041,7 +1265,7 @@ const checkMissingTimestamps = (load, stop, action, originalEntity, driver, _STO
           // Alert: Driver hasn't arrived, and the planned time is less than 10 minutes away
           if (!_STOPSALERTS.includes(stop.stopId)) {
             showNotification(
-              `Driver: ${driver.firstName} ${driver.lastName} hasn't arrived at Stop ${stop.locationCode}, and it's less than 10 minutes to the scheduled planned time (${formatISODate(action.plannedTime, stop.location.timeZone)})!`,
+              `Driver: ${driver?.firstName} ${driver?.lastName} hasn't arrived at Stop ${stop.locationCode}, and it's less than 10 minutes to the scheduled planned time (${formatISODate(action.plannedTime, stop.location.timeZone)})!`,
               'danger'
             );
             // Mark this Stop ID as alerted
@@ -1052,7 +1276,7 @@ const checkMissingTimestamps = (load, stop, action, originalEntity, driver, _STO
       } else {
         if (!_STOPSALERTS.includes(stop.stopId)) {
           showNotification(
-            `(Block: ${originalEntity.resourceBlock.id}, VRID: ${load.versionedLoadId.id})\nStop ${stop.locationCode} might be missing the timestamp, but the Driver: ${driver.firstName} ${driver.lastName} has moved on.`,
+            `(Block: ${originalEntity.resourceBlock?.id || originalEntity.id}, VRID: ${load.versionedLoadId.id})\nStop ${stop.locationCode} might be missing the timestamp, but the Driver: ${driver?.firstName} ${driver?.lastName} has moved on.`,
             'warning'
           );
           // Mark this Stop ID as alerted
@@ -1063,7 +1287,64 @@ const checkMissingTimestamps = (load, stop, action, originalEntity, driver, _STO
     }
   }
 };
+
+//TODO: Check Checkout time and compare it with Current time & If load type is EMPTY and check out has not occured before 30 mins notify to check with driver & if check out prior by 5 mins and load is loaded notify the driver.
+
+
 /**
+ * Checks the checkout status of the first stop in a load and alerts the user if the driver has not checked out within a certain time window.
+ * For EMPTY loads, it notifies if the driver has not checked out 30 minutes before the scheduled checkout time.
+ * For LOADED loads, it notifies if the driver has not checked out 5 minutes before the scheduled checkout time.
+ * @param {object} load - The load object containing the stops.
+ * @param {object} stop - The stop object containing the actions.
+ * @param {object} driver - The driver object containing the driver's first and last name.
+ */
+const checkCheckoutStatus = (originalEntity, load, stop, driver) => {
+  // Ensure we're processing stop[0] & Ensure the load is not cancelled
+  if (load.stops.indexOf(stop) !== 0) return;
+  if (load.cancelTime) return;
+
+  // Ensure CHECKIN action at stop[0] has been performed and is from "YMS"
+  const CHECKIN_ACTION = stop.actions.find(action => action.type === "CHECKIN" && action.actualTimeSource === "YMS");
+  if (!CHECKIN_ACTION || !CHECKIN_ACTION.actualTime) return;
+
+  const CHECKOUT_ACTION = stop.actions.find(action => action.type === "CHECKOUT");
+  if (!CHECKOUT_ACTION || CHECKOUT_ACTION.actualTime) return; // Skip if no CHECKOUT action or already checked out
+
+  const currentTime = new Date();
+  const plannedCheckoutTime = new Date(CHECKOUT_ACTION.plannedTime);
+  const timeDifferenceMinutes = (plannedCheckoutTime - currentTime) / (1000 * 60); // Time until checkout in minutes
+
+  const NOTIFICATIONS_LOG = JSON.parse(localStorage.getItem('_CHECKOUT_ALERTS')) || [];
+
+  // For EMPTY loads, notify if checkout hasn't occurred and it's 30 minutes before scheduled checkout
+  if (load.loadType === "EMPTY" && timeDifferenceMinutes <= 30) {
+    if (!NOTIFICATIONS_LOG.includes(`${stop.stopId}-EMPTY`)) {
+      showNotification(
+        `Block: ${originalEntity.resourceBlock?.id || originalEntity.id} VRID: ${load?.versionedLoadId?.id}\n
+              Driver: <strong>${driver?.firstName} ${driver?.lastName}</strong> at Stop ${stop.locationCode} has not checked out and is <strong>30 minutes</strong> before the scheduled time. Verify if the <strong>EMPTY</strong> load has been hooked.`,
+        "warning"
+      );
+      NOTIFICATIONS_LOG.push(`${stop.stopId}-EMPTY`);
+    }
+  }
+
+  // For LOADED loads, notify if checkout hasn't occurred and it's 5 minutes before scheduled checkout
+  if (load.loadType === "LOADED" && timeDifferenceMinutes <= 5) {
+    if (!NOTIFICATIONS_LOG.includes(`${stop.stopId}-LOADED`)) {
+      showNotification(
+        `Block: ${originalEntity.resourceBlock?.id || originalEntity.id} VRID: ${load?.versionedLoadId?.id}\n
+              Driver: <strong>${driver?.firstName} ${driver?.lastName}</strong> at Stop ${stop.locationCode} has not checked out and is <strong>5 minutes</strong> before the scheduled time. Contact ROC and arrange for the driver to bobtail out.`,
+        "danger"
+      );
+      NOTIFICATIONS_LOG.push(`${stop.stopId}-LOADED`);
+    }
+  }
+
+  // Save updated notifications log to prevent duplicate alerts
+  localStorage.setItem('_CHECKOUT_ALERTS', JSON.stringify(NOTIFICATIONS_LOG));
+};
+/***
  * Checks if there are any changes in the actual or planned timestamps for the given action and alerts if there are any changes.
  * @param {object} action - The action object.
  * @param {object} originalAction - The original action object before any changes.
@@ -1077,19 +1358,19 @@ const checkArrivalandDeparture = (action, originalAction, originalLoad, load, st
   for (const field of actionChecks) {
     if (action[field] !== originalAction[field]) {
       switch (field) {
-        case 'plannedTime': showNotification(`Amazon changed the Planned Time: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id} from ${formatISODate(originalAction[field], stop.location.timeZone)} to ${formatISODate(action[field], stop.location.timeZone)}`, 'danger');
+        case 'plannedTime': showNotification(`Amazon changed the Planned Time: Block ID ${originalEntity.resourceBlock?.id || originalEntity.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id} from ${formatISODate(originalAction[field], stop.location.timeZone)} to ${formatISODate(action[field], stop.location.timeZone)}`, 'danger');
           break;
         case 'actualTime':
           if (action.type === 'CHECKIN') {
-            showNotification(`Driver: ${driver.firstName} ${driver.lastName} checked in on ${originalEntity.resourceBlock.id} (Stop: ${stop.locationCode}), VRID ${load.versionedLoadId.id} at ${formatISODate(action[field], stop.location.timeZone)} via ${action.actualTimeSource}`, 'arrival');
+            showNotification(`Driver: ${driver?.firstName} ${driver?.lastName} checked in on ${originalEntity.resourceBlock?.id || originalEntity.id} (Stop: ${stop.locationCode}), VRID ${load.versionedLoadId.id} at ${formatISODate(action[field], stop.location.timeZone)} via ${action.actualTimeSource}`, 'arrival');
           }
           else if (action.type == 'CHECKOUT') {
-            showNotification(`Driver: ${driver.firstName} ${driver.lastName} checked out on ${originalEntity.resourceBlock.id} (Stop: ${stop.locationCode}), VRID ${load.versionedLoadId.id} at ${formatISODate(action[field], stop.location.timeZone)} via ${action.actualTimeSource}`, 'departure');
+            showNotification(`Driver: ${driver?.firstName} ${driver?.lastName} checked out on ${originalEntity.resourceBlock?.id || originalEntity.id} (Stop: ${stop.locationCode}), VRID ${load.versionedLoadId.id} at ${formatISODate(action[field], stop.location.timeZone)} via ${action.actualTimeSource}`, 'departure');
           }
           break;
         default:
           showNotification(
-            `Block: ${originalEntity.resourceBlock.id} Changed!\n` +
+            `Block: ${originalEntity.resourceBlock?.id || originalEntity.id} Changed!\n` +
             `${field} on load ${load.versionedLoadId.id} of type: ${action.type} Changed\n` +
             `From ${originalAction[field]} to ${action[field]}`,
             'info');
@@ -1098,25 +1379,38 @@ const checkArrivalandDeparture = (action, originalAction, originalLoad, load, st
     }
   }
 }
+
 /**
- * Checks if a trailer has finished loading and shows a notification if it has.
- * @param {object} stop - The current stop object.
- * @param {object} originalStop - The original stop object before any changes.
+ * Checks if the trailer at the current stop has finished loading and sends a notification if it has.
+ * This function compares the trailer loading status of the current stop with the original stop.
+ * If the status has changed to "FINISHED_LOADING", it sends a notification and marks the stop as alerted.
+ *
  * @param {object} originalEntity - The original Tour entity object.
  * @param {object} load - The current load object.
+ * @param {object} originalLoad - The original load object for comparison.
+ * @param {object} originalStop - The original stop object before any changes.
+ * @param {object} stop - The current stop object.
  * @param {object} driver - The driver object containing the driver's first and last name.
  */
 const checkTrailerLoadingStatus = (originalEntity, load, originalLoad, originalStop, stop, driver) => {
-  if (stop.trailerDetails[0].trailerLoadingStatus !== originalStop.trailerDetails[0].trailerLoadingStatus) {
-    if (stop.trailerDetails[0].trailerLoadingStatus === `FINISHED_LOADING`) {
+  //TODO: Ensure only one stop which is CHECKIN Action is being processed
+  const _LOADREADYSALERTS = JSON.parse(localStorage.getItem('_LOADREADYSALERTS')) || [];
+  if (stop.trailerDetails[0].trailerLoadingStatus !== originalStop.trailerDetails[0].trailerLoadingStatus &&
+    stop.trailerDetails[0].trailerLoadingStatus === `FINISHED_LOADING`) {
+    if (!_LOADREADYSALERTS.includes(stop.stopId)) {
+      // Format the driver's first name
+      const formattedFirstName = formatFirstName(driver?.firstName);
+
       showNotification(
-        `Load has finished loading: Block ID ${originalEntity.resourceBlock.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}\n
-          Driver: ${driver.firstName} at site ${stop.locationCode}, Load: ${stop.trailerDetails[0].assetOwner}-${stop.trailerDetails[0].assetId} is ready for pickup
+        `Load has finished loading: Block ID ${originalEntity.resourceBlock?.id || originalEntity.id} (Trip: ${originalLoad.facilitySequence}), VRID ${load.versionedLoadId.id}\n
+          Driver: ${formattedFirstName} at site ${stop.locationCode}, Load: ${stop.trailerDetails[0].assetOwner}-${stop.trailerDetails[0].assetId} is ready for pickup
         `,
         'LoadReady');
+      _LOADREADYSALERTS.push(stop.stopId);
+      localStorage.setItem('_LOADREADYSALERTS', JSON.stringify(_LOADREADYSALERTS));
     }
   }
-}
+};
 /**
  * Cleans up the stored notes by removing entries that are not present in the original entities.
  * Iterates over the stored notes and checks if each note's entity ID is still present in the current set of original entities.
@@ -1149,6 +1443,7 @@ const startProcess = async () => {
   let originalEntities = localStorage.getItem("originalEntities");
   //console.log(originalEntities);
   originalEntities = originalEntities ? JSON.parse(originalEntities) : [];
+  //CompanySCAC = originalEntities?.loads[0]?.carrierId;
   const _STOPSALERTS = JSON.parse(localStorage.getItem('_STOPSALERTS')) || [];
   try {
     await fetchAssets();
@@ -1178,6 +1473,7 @@ const processEntities = async (entities, originalEntities, _STOPSALERTS) => {
     const driver = entity.drivers[0];
     compareAndNotifyLoadChanges(driver, originalEntity, loads);
     checkFacilitySequenceGaps(driver, entity, loads);
+
     for (const load of loads) {
       let hasLaterTimestamps = false;
       const originalLoad = originalEntity.loads.find((item) => item.versionedLoadId.id === load.versionedLoadId.id);
@@ -1193,6 +1489,7 @@ const processEntities = async (entities, originalEntities, _STOPSALERTS) => {
         if (!originalStop) {
           continue;
         }
+        checkCheckoutStatus(originalEntity, load, stop, driver);
         ///Done:check if trailer has finished loading
         checkTrailerLoadingStatus(originalEntity, load, originalLoad, originalStop, stop, driver);
         for (const action of stop.actions) {
@@ -1212,6 +1509,7 @@ const processEntities = async (entities, originalEntities, _STOPSALERTS) => {
 
 (function () {
   console.log("Script run!");
+  addClearNotificationsAndETACheckbox();
   setInterval(startProcess, 30000);
   startProcess()
 })()
